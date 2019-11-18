@@ -88,7 +88,8 @@ impl Point {
 
     #[inline(always)]
     pub fn is_on_curve(&self) -> bool {
-        self.y.clone().pow_u(2) == (self.x.clone().pow_u(3) + self.group.a.clone() * self.x.clone() + &self.group.b) // Y^2 = X^3 + ax + b
+        self.y.clone().pow_u(2) == (self.x.clone().pow_u(3) + self.group.a.clone() * self.x.clone() + &self.group.b)
+        // Y^2 = X^3 + ax + b
     }
 
     #[inline(always)]
@@ -109,6 +110,7 @@ impl Point {
 impl Add for Point {
     type Output = Self;
     #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
     fn add(self, other: Self) -> Self {
         let inf = FieldElement::infinity(&self.x.modulo);
         if self.x.is_infinity() {

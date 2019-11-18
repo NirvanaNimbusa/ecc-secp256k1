@@ -12,6 +12,11 @@ use std::{
     sync::Once,
 };
 
+//extra added
+use encoding::all::ISO_8859_1;
+use encoding::{EncoderTrap, Encoding};
+use crate::utility::to_hex_string;
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Secp256k1 {
     pub modulo: Integer,
@@ -30,6 +35,10 @@ impl Secp256k1 {
     const n: &'static str = "115792089237316195423570985008687907852837564279074904382605163141518161494337";
 
     #[allow(clippy::many_single_char_names)]
+    // Create a new secp256k1 space with
+    // module = p
+    // curve order = n
+    // generator poinr = Point(Gx, Gy)
     pub fn new() -> Secp256k1 {
         let x: Integer = Self::Gx.parse().unwrap();
         let y: Integer = Self::Gy.parse().unwrap();
@@ -41,15 +50,20 @@ impl Secp256k1 {
         let point = Point::new_with_group(x, y, &p, group).unwrap();
         Secp256k1 { generator: point, modulo: p, order: n }
     }
+    #[allow(clippy::suspicious_arithmetic_impl)]
 
+    // The generator point is private
+    // this function extracts that out
     pub fn generator(&self) -> Point {
         self.generator.clone()
     }
 
+    // convert any interger [u8] into secp256k1 field element.
     pub fn get_fe(&self, num: &[u8]) -> FieldElement {
         FieldElement::from_serialize(&num, &self.modulo)
     }
 
+    // take x:[u8] and y:[u8] constrcuts a PublickKey object in secp256k1
     pub fn get_pubkey(&self, x: &[u8], y: &[u8]) -> PublicKey {
         let x = FieldElement::from_serialize(x, &self.modulo);
         let y = FieldElement::from_serialize(y, &self.modulo);
@@ -60,6 +74,7 @@ impl Secp256k1 {
         PublicKey { point }
     }
 
+    // Serialize the curve order
     // TODO: Hard code this.
     pub fn serialized_order(&self) -> [u8; 32] {
         let mut res = [0u8; 32];
@@ -315,6 +330,14 @@ fn get_e(xR: FieldElement, pubkey: PublicKey, msg: [u8; 32]) -> FieldElement {
     e.input(&pubkey.compressed());
     e.input(&msg);
     FieldElement::from_serialize(&e.result(), &secp.order)
+}
+
+pub fn tagged_hash(tag: &str, msg: &[u8]) -> [u8; 32] {
+    let tag_encode = ISO_8859_1.encode(tag, EncoderTrap::Strict).unwrap();
+    let tag_hash1 = tag_encode.hash_digest().to_vec();
+    //for now allocating two different ones
+    let tag_hash2 = tag_hash1.clone();
+    [tag_hash1, tag_hash2, msg.to_vec()].concat().hash_digest()
 }
 
 fn get_hashed_message_if(msg: &[u8], to_hash: bool) -> [u8; 32] {
@@ -628,5 +651,25 @@ mod test {
                 TestMode::ParsePubkeyOnly => parse_pubkey_only(vec),
             };
         }
+    }
+
+    //extra test
+    #[test]
+    fn test_tagged_hash() {
+        //zero message
+        let msg = [0u8];
+        //testing tags
+        let test_tags = vec!("TapLeaf", "TapRoot", "TapBranch", "Random-Chutiyapa");
+        let mut results = Vec::new();
+        for tag in test_tags {
+            results.push(to_hex_string(tagged_hash(tag, &msg).as_ref()));
+        }
+        // Good Results
+        let good_results = vec!("ED1382037800C9DD938DD8854F1A8863BCDEB6705069B4B56A66EC22519D5829",
+                            "A7AB373B73939BA58031EED842B334D97E03664C51047E855F299462A8255D2F",
+                            "92534B1960C7E6245AF7D5FDA2588DB04AA6D646ABC2B588DAB2B69E5645EB1D",
+                            "4DC5D3BBBDA44AF536A9E7E2B7C080F3C0DA6AEC2E9B9DA2918A8ED66B83F9E1");
+
+        assert_eq!(good_results, results);
     }
 }

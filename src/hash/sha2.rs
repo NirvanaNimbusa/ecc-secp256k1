@@ -141,6 +141,7 @@ impl Vec64 {
         self.pos += 1;
     }
 
+    #[allow(clippy::cast_ptr_alignment)]
     pub fn to_data(&self) -> [u32; 16] {
         let ptr = self.data.as_ptr();
         debug_assert_eq!(ptr as usize % U32_ALIGN, 0);

@@ -22,7 +22,7 @@ impl FieldElement {
     }
 
     pub fn infinity<I: Into<Integer>>(modulo: I) -> FieldElement {
-        Self { num: 0.into(), modulo: modulo.into() } // Right now I'm representing Infinity as (0,0).
+        Self { num: 0.into(), modulo: modulo.into() } // Right now I'm representing Infinity as curve point(0,0).
     }
     pub fn is_infinity(&self) -> bool {
         self == &Self::infinity(&self.modulo)

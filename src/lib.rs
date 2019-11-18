@@ -8,6 +8,10 @@ mod point;
 mod secp256k1;
 //mod u256;
 mod ffi;
+
+//extra added
+mod utility;
+
 #[cfg(test)]
 mod test_vectors;
 
