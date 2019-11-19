@@ -13,8 +13,6 @@ use std::{
 };
 
 //extra added
-use encoding::all::ISO_8859_1;
-use encoding::{EncoderTrap, Encoding};
 use crate::utility::to_hex_string;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -332,9 +330,8 @@ fn get_e(xR: FieldElement, pubkey: PublicKey, msg: [u8; 32]) -> FieldElement {
     FieldElement::from_serialize(&e.result(), &secp.order)
 }
 
-pub fn tagged_hash(tag: &str, msg: &[u8]) -> [u8; 32] {
-    let tag_encode = ISO_8859_1.encode(tag, EncoderTrap::Strict).unwrap();
-    let tag_hash1 = tag_encode.hash_digest().to_vec();
+pub fn tagged_hash(tag: &[u8], msg: &[u8]) -> [u8; 32] {
+    let tag_hash1 = tag.hash_digest().to_vec();
     //for now allocating two different ones
     let tag_hash2 = tag_hash1.clone();
     [tag_hash1, tag_hash2, msg.to_vec()].concat().hash_digest()
@@ -662,7 +659,7 @@ mod test {
         let test_tags = vec!("TapLeaf", "TapRoot", "TapBranch", "Random-Chutiyapa");
         let mut results = Vec::new();
         for tag in test_tags {
-            results.push(to_hex_string(tagged_hash(tag, &msg).as_ref()));
+            results.push(to_hex_string(tagged_hash(tag.as_bytes(), &msg).as_ref()));
         }
         // Good Results
         let good_results = vec!("ED1382037800C9DD938DD8854F1A8863BCDEB6705069B4B56A66EC22519D5829",

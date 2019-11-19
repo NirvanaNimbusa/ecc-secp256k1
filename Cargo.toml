@@ -10,7 +10,6 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 rug = { version = "=1.4.0", default-features = false, features = ["integer"] } # GMP - Big Integers
-encoding={ version = "0.2"} #for utf8 encoding of strings
 
 [dev-dependencies]
 secp256k1 = { version = "0.12.2", features = ["rand" ] }
