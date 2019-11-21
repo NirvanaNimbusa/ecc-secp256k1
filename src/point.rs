@@ -40,6 +40,7 @@ impl fmt::Debug for Point {
 }
 
 impl Point {
+    // generate point in secp256k1
     pub fn new<I, T, V>(x: I, y: T, modulo: V) -> Result<Self, ()>
     where
         I: Into<Integer>,
@@ -83,6 +84,13 @@ impl Point {
     pub fn gen_zero(&self) -> Self {
         let x = FieldElement::new(0, &self.x.modulo);
         let y = FieldElement::new(0, &self.x.modulo);
+        Self { x, y, group: self.group.clone() }
+    }
+
+    // Get the point equvalent to 0 in secp256k1
+    pub fn gen_infinity(self) -> Self {
+        let x = FieldElement::infinity(&self.x.modulo);
+        let y = FieldElement::infinity(&self.x.modulo);
         Self { x, y, group: self.group.clone() }
     }
 

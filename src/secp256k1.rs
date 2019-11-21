@@ -8,12 +8,13 @@ use rug::{integer::Order, Integer};
 use std::{
     fmt,
     io::{BufReader, Read},
-    ops::Deref,
+    ops::{Add, Deref, Mul},
     sync::Once,
 };
 
 //extra added
-use crate::utility::to_hex_string;
+use crate::utility::bytes_to_hex;
+use std::iter::Sum;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Secp256k1 {
@@ -95,6 +96,22 @@ pub struct PublicKey {
 }
 
 impl PublicKey {
+
+    // Create a pubkey which is point at infinity
+    // used for cumulative summation
+    // can also be used for initialization
+    // this is like 0 in pubkey world
+    pub fn zero_pubkey() -> Self {
+        let secp = get_context();
+
+        let x = FieldElement::infinity(&secp.modulo);
+        let y = FieldElement::infinity(&secp.modulo);
+
+        let point = Point { x, y, group: secp.generator.group.clone() };
+
+        PublicKey { point }
+    }
+
     pub fn uncompressed(self) -> [u8; 65] {
         let mut result = [0u8; 65];
         result[0] = 0x04;
@@ -330,6 +347,7 @@ fn get_e(xR: FieldElement, pubkey: PublicKey, msg: [u8; 32]) -> FieldElement {
     FieldElement::from_serialize(&e.result(), &secp.order)
 }
 
+// an tagged hash implementation used in Bip Schnorr
 pub fn tagged_hash(tag: &[u8], msg: &[u8]) -> [u8; 32] {
     let tag_hash1 = tag.hash_digest().to_vec();
     //for now allocating two different ones
@@ -483,8 +501,8 @@ impl Signature {
     }
 }
 
-#[derive(Default, PartialEq, Eq, Debug)]
-struct Scalar(pub [u8; 32]);
+#[derive(Default, PartialEq, Eq, Debug, Clone)]
+pub struct Scalar(pub [u8; 32]);
 
 impl Scalar {
     pub fn new(slice: &[u8]) -> Scalar {
@@ -542,6 +560,93 @@ impl AsRef<[u8]> for Scalar {
         &self.0
     }
 }
+
+
+// Operation Implementation for Public Keys
+impl Add for PublicKey {
+    type Output = Self;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: Self) -> Self {
+        PublicKey::from(self.point + other.point)
+    }
+}
+
+impl Mul<Scalar> for PublicKey {
+    type Output = PublicKey;
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[inline(always)]
+    fn mul(self, other: Scalar) -> Self {
+        PublicKey { point: Integer::from_digits(&other.0, Order::MsfBe) * self.point }
+    }
+}
+
+impl Mul<&Scalar> for PublicKey {
+    type Output = PublicKey;
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[inline(always)]
+    fn mul(self, other: &Scalar) -> Self {
+        PublicKey { point: Integer::from_digits(&other.0, Order::MsfBe) * self.point}
+    }
+}
+
+impl Mul<Scalar> for &PublicKey {
+    type Output = PublicKey;
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[inline(always)]
+    fn mul(self, other: Scalar) -> PublicKey {
+        PublicKey { point: Integer::from_digits(&other.0, Order::MsfBe) * self.point.clone() }
+    }
+}
+
+impl Mul<&Scalar> for &PublicKey {
+    type Output = PublicKey;
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[inline(always)]
+    fn mul(self, other: &Scalar) -> PublicKey {
+        PublicKey { point: Integer::from_digits(&other.0, Order::MsfBe) * self.point.clone() }
+    }
+}
+
+
+impl Mul<PublicKey> for Scalar {
+    type Output = PublicKey;
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[inline(always)]
+    fn mul(self, other: PublicKey) -> PublicKey {
+        PublicKey { point: Integer::from_digits(&self.0, Order::MsfBe) * other.point }
+    }
+}
+
+
+
+impl Mul<&PublicKey> for Scalar {
+    type Output = PublicKey;
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[inline(always)]
+    fn mul(self, other: &PublicKey) -> PublicKey {
+        PublicKey { point: Integer::from_digits(&self.0, Order::MsfBe) * other.point.clone() }
+    }
+}
+
+impl Mul<PublicKey> for &Scalar {
+    type Output = PublicKey;
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[inline(always)]
+    fn mul(self, other: PublicKey) -> PublicKey {
+        PublicKey { point: Integer::from_digits(&self.0, Order::MsfBe) * other.point.clone() }
+    }
+}
+
+impl Mul<&PublicKey> for &Scalar {
+    type Output = PublicKey;
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[inline(always)]
+    fn mul(self, other: &PublicKey) -> PublicKey {
+        PublicKey { point: Integer::from_digits(&self.0, Order::MsfBe) * other.point.clone() }
+    }
+}
+
 
 #[cfg(test)]
 mod test {
@@ -656,16 +761,18 @@ mod test {
         //zero message
         let msg = [0u8];
         //testing tags
-        let test_tags = vec!("TapLeaf", "TapRoot", "TapBranch", "Random-Chutiyapa");
+        let test_tags = vec!["TapLeaf", "TapRoot", "TapBranch", "Random-Chutiyapa"];
         let mut results = Vec::new();
         for tag in test_tags {
-            results.push(to_hex_string(tagged_hash(tag.as_bytes(), &msg).as_ref()));
+            results.push(bytes_to_hex(tagged_hash(tag.as_bytes(), &msg).as_ref()));
         }
         // Good Results
-        let good_results = vec!("ED1382037800C9DD938DD8854F1A8863BCDEB6705069B4B56A66EC22519D5829",
-                            "A7AB373B73939BA58031EED842B334D97E03664C51047E855F299462A8255D2F",
-                            "92534B1960C7E6245AF7D5FDA2588DB04AA6D646ABC2B588DAB2B69E5645EB1D",
-                            "4DC5D3BBBDA44AF536A9E7E2B7C080F3C0DA6AEC2E9B9DA2918A8ED66B83F9E1");
+        let good_results = vec![
+            "ED1382037800C9DD938DD8854F1A8863BCDEB6705069B4B56A66EC22519D5829",
+            "A7AB373B73939BA58031EED842B334D97E03664C51047E855F299462A8255D2F",
+            "92534B1960C7E6245AF7D5FDA2588DB04AA6D646ABC2B588DAB2B69E5645EB1D",
+            "4DC5D3BBBDA44AF536A9E7E2B7C080F3C0DA6AEC2E9B9DA2918A8ED66B83F9E1",
+        ];
 
         assert_eq!(good_results, results);
     }

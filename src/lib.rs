@@ -10,6 +10,7 @@ mod secp256k1;
 mod ffi;
 
 //extra added
+mod musig;
 mod utility;
 
 #[cfg(test)]
