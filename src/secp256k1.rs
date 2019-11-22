@@ -14,7 +14,6 @@ use std::{
 
 //extra added
 use crate::utility::bytes_to_hex;
-use std::iter::Sum;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Secp256k1 {
@@ -35,7 +34,7 @@ impl Secp256k1 {
 
     #[allow(clippy::many_single_char_names)]
     // Create a new secp256k1 space with
-    // module = p
+    // modulo = p
     // curve order = n
     // generator poinr = Point(Gx, Gy)
     pub fn new() -> Secp256k1 {
@@ -206,6 +205,24 @@ impl PublicKey {
         }
         R.x.num == r.num
     }
+
+    pub fn is_square_y(&self) -> bool {
+        match jacobi::jacobi_symbol(self.point.y.num.clone(), self.point.y.modulo.clone()) {
+            Jacobi::One => true,
+            _=> false
+        }
+    }
+
+    pub fn negate(self) -> PublicKey {
+        let secp = get_context();
+        
+        let x = FieldElement::new(&self.point.x.num, &secp.modulo);
+        let y = FieldElement::new(&secp.modulo - &self.point.y.num, &secp.modulo);
+        let point = Point {x, y, group: secp.generator().group.clone()};
+
+        PublicKey {point}
+
+    }
 }
 
 impl PrivateKey {
@@ -335,6 +352,7 @@ impl PrivateKey {
         let i = Integer::from_digits(ser, Order::MsfLe);
         PrivateKey::new(i)
     }
+
 }
 
 #[allow(non_snake_case)]
@@ -541,6 +559,12 @@ impl From<Point> for PublicKey {
     }
 }
 
+impl From<PublicKey> for Point {
+    fn from(public_key: PublicKey) -> Point {
+       public_key.point 
+    }
+}
+
 impl Default for Secp256k1 {
     fn default() -> Secp256k1 {
         Secp256k1::new()
@@ -571,6 +595,35 @@ impl Add for PublicKey {
         PublicKey::from(self.point + other.point)
     }
 }
+
+impl Add<&PublicKey> for PublicKey {
+    type Output = PublicKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: &PublicKey) -> PublicKey {
+        PublicKey::from(self.point + other.point.clone())
+    }
+}
+
+impl Add<PublicKey> for &PublicKey {
+    type Output = PublicKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: PublicKey) -> PublicKey {
+        PublicKey::from(self.point.clone() + other.point)
+    }
+}
+
+impl Add<&PublicKey> for &PublicKey {
+    type Output = PublicKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: &PublicKey) -> PublicKey {
+        PublicKey::from(self.point.clone() + other.point.clone())
+    }
+}
+
+
 
 impl Mul<Scalar> for PublicKey {
     type Output = PublicKey;
@@ -775,5 +828,24 @@ mod test {
         ];
 
         assert_eq!(good_results, results);
+    }
+
+    #[test]
+    fn test_negate_pubkeys() {
+        let key = PrivateKey::new(Integer::from(100));
+        let pubkey = key.generate_pubkey();
+
+        let secp = get_context();
+
+        let x: Point = pubkey.clone().into();
+
+        let y: Point = (&secp.order - Integer::from(1)) * x;
+
+        let neg_pubkey: PublicKey = y.into();
+
+        let cal_neg_pubkey = pubkey.negate();
+
+        assert_eq!(neg_pubkey, cal_neg_pubkey);
+
     }
 }

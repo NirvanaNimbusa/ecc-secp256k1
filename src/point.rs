@@ -87,13 +87,6 @@ impl Point {
         Self { x, y, group: self.group.clone() }
     }
 
-    // Get the point equvalent to 0 in secp256k1
-    pub fn gen_infinity(self) -> Self {
-        let x = FieldElement::infinity(&self.x.modulo);
-        let y = FieldElement::infinity(&self.x.modulo);
-        Self { x, y, group: self.group.clone() }
-    }
-
     #[inline(always)]
     pub fn is_on_curve(&self) -> bool {
         self.y.clone().pow_u(2) == (self.x.clone().pow_u(3) + self.group.a.clone() * self.x.clone() + &self.group.b)
