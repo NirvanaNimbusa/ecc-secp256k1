@@ -25,9 +25,11 @@ pub fn hex_to_bytes(hex_asm: &str) -> Vec<u8> {
     bytes
 }
 
+/*
 pub fn sum_over_pubkeys(pubkeys: Vec<&PublicKey>) -> PublicKey {
     pubkeys.iter().fold(PublicKey::zero_pubkey(), |agg, x| agg + *x)
 }
+*/
 
 #[cfg(test)]
 mod test {
@@ -45,7 +47,9 @@ mod test {
         let hex = "FF00AA";
         let bytes = [0xFF as u8, 0 as u8, 0xAA as u8];
         assert_eq!(hex_to_bytes(hex), bytes);
-    }#[test]
+    }
+    /*
+    #[test]
     fn test_sum_over_pubkeys() {
          //make private keys
         let key_1 = PrivateKey::new(Integer::from(101));
@@ -61,6 +65,5 @@ mod test {
         assert_eq!("02f90c3416d74049bf27b5563067c58401ff466e4bb04e1fa4d51ae4c93b4a8316".to_uppercase(),
                     bytes_to_hex(&ans.compressed()))
     }
-
-
+    */
 }

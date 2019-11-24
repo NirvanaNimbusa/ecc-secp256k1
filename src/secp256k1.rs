@@ -8,6 +8,7 @@ use rug::{integer::Order, Integer};
 use std::{
     fmt,
     io::{BufReader, Read},
+    iter::Sum,
     ops::{Add, Deref, Mul},
     sync::Once,
 };
@@ -95,7 +96,6 @@ pub struct PublicKey {
 }
 
 impl PublicKey {
-
     // Create a pubkey which is point at infinity
     // used for cumulative summation
     // can also be used for initialization
@@ -111,17 +111,17 @@ impl PublicKey {
         PublicKey { point }
     }
 
-    pub fn uncompressed(self) -> [u8; 65] {
+    pub fn uncompressed(&self) -> [u8; 65] {
         let mut result = [0u8; 65];
         result[0] = 0x04;
-        result[1..33].copy_from_slice(&self.point.x.serialize_num());
-        result[33..65].copy_from_slice(&self.point.y.serialize_num());
+        result[1..33].copy_from_slice(&self.point.x.clone().serialize_num());
+        result[33..65].copy_from_slice(&self.point.y.clone().serialize_num());
         result
     }
 
-    pub fn compressed(self) -> [u8; 33] {
+    pub fn compressed(&self) -> [u8; 33] {
         let mut result = [0u8; 33];
-        let x = self.point.x.serialize_num();
+        let x = self.point.x.clone().serialize_num();
         result[1 + (32 - x.len())..].copy_from_slice(&x);
         result[0] = if self.point.y.is_even() { 0x02 } else { 0x03 };
         result
@@ -209,19 +209,18 @@ impl PublicKey {
     pub fn is_square_y(&self) -> bool {
         match jacobi::jacobi_symbol(self.point.y.num.clone(), self.point.y.modulo.clone()) {
             Jacobi::One => true,
-            _=> false
+            _ => false,
         }
     }
 
     pub fn negate(self) -> PublicKey {
         let secp = get_context();
-        
+
         let x = FieldElement::new(&self.point.x.num, &secp.modulo);
         let y = FieldElement::new(&secp.modulo - &self.point.y.num, &secp.modulo);
-        let point = Point {x, y, group: secp.generator().group.clone()};
+        let point = Point { x, y, group: secp.generator().group.clone() };
 
-        PublicKey {point}
-
+        PublicKey { point }
     }
 }
 
@@ -338,9 +337,9 @@ impl PrivateKey {
         SchnorrSignature::new(&r, &s)
     }
 
-    fn serialize(&self) -> [u8; 32] {
+    pub fn serialize(&self) -> [u8; 32] {
         let mut res = [0u8; 32];
-        let serialized = self.scalar.to_digits(Order::MsfLe);
+        let serialized = self.scalar.to_digits(Order::MsfBe);
         if serialized.len() > 32 {
             unimplemented!();
         }
@@ -349,10 +348,14 @@ impl PrivateKey {
     }
 
     pub fn from_serialized(ser: &[u8]) -> PrivateKey {
-        let i = Integer::from_digits(ser, Order::MsfLe);
+        let secp = get_context();
+        let i = Integer::from_digits(ser, Order::MsfLe) % &secp.modulo;
         PrivateKey::new(i)
     }
 
+    pub fn negate(self) -> PrivateKey {
+        PrivateKey { scalar: &get_context().order - self.scalar }
+    }
 }
 
 #[allow(non_snake_case)]
@@ -561,7 +564,7 @@ impl From<Point> for PublicKey {
 
 impl From<PublicKey> for Point {
     fn from(public_key: PublicKey) -> Point {
-       public_key.point 
+        public_key.point
     }
 }
 
@@ -584,7 +587,6 @@ impl AsRef<[u8]> for Scalar {
         &self.0
     }
 }
-
 
 // Operation Implementation for Public Keys
 impl Add for PublicKey {
@@ -623,8 +625,17 @@ impl Add<&PublicKey> for &PublicKey {
     }
 }
 
+// iter().sum() implementation for &[PublicKey]
+impl<'a> Sum<&'a Self> for PublicKey {
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = &'a Self>,
+    {
+        iter.fold(Self::zero_pubkey(), |a, b| a + b)
+    }
+}
 
-
+// All possible variation of Scalar Multiplication
 impl Mul<Scalar> for PublicKey {
     type Output = PublicKey;
     #[allow(clippy::suspicious_arithmetic_impl)]
@@ -639,7 +650,7 @@ impl Mul<&Scalar> for PublicKey {
     #[allow(clippy::suspicious_arithmetic_impl)]
     #[inline(always)]
     fn mul(self, other: &Scalar) -> Self {
-        PublicKey { point: Integer::from_digits(&other.0, Order::MsfBe) * self.point}
+        PublicKey { point: Integer::from_digits(&other.0, Order::MsfBe) * self.point }
     }
 }
 
@@ -661,7 +672,6 @@ impl Mul<&Scalar> for &PublicKey {
     }
 }
 
-
 impl Mul<PublicKey> for Scalar {
     type Output = PublicKey;
     #[allow(clippy::suspicious_arithmetic_impl)]
@@ -670,8 +680,6 @@ impl Mul<PublicKey> for Scalar {
         PublicKey { point: Integer::from_digits(&self.0, Order::MsfBe) * other.point }
     }
 }
-
-
 
 impl Mul<&PublicKey> for Scalar {
     type Output = PublicKey;
@@ -700,6 +708,123 @@ impl Mul<&PublicKey> for &Scalar {
     }
 }
 
+// Add implemntaion for Private Keys with Scalars
+impl Add for &PrivateKey {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: &PrivateKey) -> PrivateKey {
+        PrivateKey { scalar: (self.scalar.clone() + other.scalar.clone()) % &get_context().order }
+    }
+}
+
+impl Add<Scalar> for PrivateKey {
+    type Output = Self;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: Scalar) -> Self {
+        PrivateKey { scalar: (self.scalar + Integer::from_digits(&other.0, Order::MsfBe)) % &get_context().order }
+    }
+}
+
+impl Add<&Scalar> for PrivateKey {
+    type Output = Self;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: &Scalar) -> Self {
+        PrivateKey { scalar: (self.scalar + Integer::from_digits(&other.0, Order::MsfBe)) % &get_context().order }
+    }
+}
+
+impl Add<&Scalar> for &PrivateKey {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: &Scalar) -> PrivateKey {
+        PrivateKey { scalar: (self.scalar.clone() + Integer::from_digits(&other.0, Order::MsfBe)) % &get_context().order }
+    }
+}
+
+impl Add<Scalar> for &PrivateKey {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: Scalar) -> PrivateKey {
+        PrivateKey { scalar: (self.scalar.clone() + Integer::from_digits(&other.0, Order::MsfBe)) % &get_context().order }
+    }
+}
+
+impl Add<PrivateKey> for Scalar {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: PrivateKey) -> PrivateKey {
+        PrivateKey { scalar: (other.scalar + Integer::from_digits(&self.0, Order::MsfBe)) % &get_context().order }
+    }
+}
+
+impl Add<PrivateKey> for &Scalar {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: PrivateKey) -> PrivateKey {
+        PrivateKey { scalar: (other.scalar + Integer::from_digits(&self.0, Order::MsfBe)) % &get_context().order }
+    }
+}
+
+impl Add<&PrivateKey> for Scalar {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: &PrivateKey) -> PrivateKey {
+        PrivateKey { scalar: (other.scalar.clone() + Integer::from_digits(&self.0, Order::MsfBe)) % &get_context().order }
+    }
+}
+
+impl Add<&PrivateKey> for &Scalar {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn add(self, other: &PrivateKey) -> PrivateKey {
+        PrivateKey { scalar: other.scalar.clone() + Integer::from_digits(&self.0, Order::MsfBe) % &get_context().order }
+    }
+}
+
+impl Mul<Scalar> for PrivateKey {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn mul(self, other: Scalar) -> PrivateKey {
+        PrivateKey { scalar: (self.scalar * Integer::from_digits(&other.0, Order::MsfBe)) % &get_context().order }
+    }
+}
+
+impl Mul<&Scalar> for PrivateKey {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn mul(self, other: &Scalar) -> PrivateKey {
+        PrivateKey { scalar: (self.scalar * Integer::from_digits(&other.0, Order::MsfBe)) % &get_context().order }
+    }
+}
+
+impl Mul<&Scalar> for &PrivateKey {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn mul(self, other: &Scalar) -> PrivateKey {
+        PrivateKey { scalar: (self.scalar.clone() * Integer::from_digits(&other.0, Order::MsfBe)) % &get_context().order }
+    }
+}
+
+impl Mul<Scalar> for &PrivateKey {
+    type Output = PrivateKey;
+    #[inline(always)]
+    #[allow(clippy::if_same_then_else)]
+    fn mul(self, other: Scalar) -> PrivateKey {
+        PrivateKey { scalar: (self.scalar.clone() * Integer::from_digits(&other.0, Order::MsfBe)) % &get_context().order }
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -846,6 +971,5 @@ mod test {
         let cal_neg_pubkey = pubkey.negate();
 
         assert_eq!(neg_pubkey, cal_neg_pubkey);
-
     }
 }
