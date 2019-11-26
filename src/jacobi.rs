@@ -63,9 +63,10 @@ mod tests {
     use rug::{integer::Order, Integer};
 
     #[test]
+    #[allow(clippy::cast_lossless)]
     fn test_jacobi() {
-        let a: Integer = 34321421432_u128.into();
-        let b: Integer = 89732432312341_u128.into();
+        let a: Integer = 34_321_421_432_u128.into();
+        let b: Integer = 89_732_432_312_341_u128.into();
 
         let jacobi = jacobi_symbol(a.clone(), b.clone());
 
@@ -74,6 +75,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cast_lossless)]
     fn test_failed_jacobi() {
         let a = [
             63_u8, 57, 121, 191, 114, 174, 130, 2, 152, 61, 201, 137, 174, 199, 242, 255, 46, 217, 27, 221, 105, 206, 2, 252, 7, 0,

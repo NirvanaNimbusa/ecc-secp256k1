@@ -13,9 +13,6 @@ use std::{
     sync::Once,
 };
 
-//extra added
-use crate::utility::bytes_to_hex;
-
 #[derive(Clone, PartialEq, Debug)]
 pub struct Secp256k1 {
     pub modulo: Integer,
@@ -245,7 +242,7 @@ impl PrivateKey {
         result.copy_from_slice(&hash.result());
         result
     }
-
+    #[allow(clippy::many_single_char_names)]
     pub(crate) fn sign_raw(d: &Integer, k: FieldElement, z: FieldElement) -> Signature {
         let secp = get_context();
         let k_point: Point = &k.num * secp.generator();
@@ -328,6 +325,7 @@ impl PrivateKey {
 
     // TODO: Pass Rx instead of R.
     #[allow(non_snake_case)]
+    #[allow(clippy::many_single_char_names)]
     pub(crate) fn sign_schnorr_raw(d: &Integer, k: FieldElement, e: FieldElement, R: Option<Point>) -> SchnorrSignature {
         let R = R.unwrap_or_else(|| &k.num * get_context().generator());
 
@@ -368,13 +366,7 @@ fn get_e(xR: FieldElement, pubkey: PublicKey, msg: [u8; 32]) -> FieldElement {
     FieldElement::from_serialize(&e.result(), &secp.order)
 }
 
-// an tagged hash implementation used in Bip Schnorr
-pub fn tagged_hash(tag: &[u8], msg: &[u8]) -> [u8; 32] {
-    let tag_hash1 = tag.hash_digest().to_vec();
-    //for now allocating two different ones
-    let tag_hash2 = tag_hash1.clone();
-    [tag_hash1, tag_hash2, msg.to_vec()].concat().hash_digest()
-}
+
 
 fn get_hashed_message_if(msg: &[u8], to_hash: bool) -> [u8; 32] {
     let mut msg_hash = [0u8; 32];
@@ -834,7 +826,7 @@ mod test {
 
     #[test]
     fn test_compress_pubkey() {
-        let privkey = PrivateKey::new(32432432);
+        let privkey = PrivateKey::new(32_432_432);
         let pubkey = privkey.generate_pubkey();
         let compress = pubkey.clone().compressed();
         assert_eq!(PublicKey::from_compressed(&compress).unwrap(), pubkey);
@@ -842,7 +834,7 @@ mod test {
 
     #[test]
     fn test_uncompressed_pubkey() {
-        let privkey = PrivateKey::new(32432432);
+        let privkey = PrivateKey::new(32_432_432);
         let pubkey = privkey.generate_pubkey();
         let compress = pubkey.clone().uncompressed();
         assert_eq!(PublicKey::from_uncompressed(&compress), pubkey);
@@ -850,9 +842,9 @@ mod test {
 
     #[test]
     fn test_ecdh() {
-        let priv_key1 = PrivateKey::new(8764321234_u128);
+        let priv_key1 = PrivateKey::new(8_764_321_234_u128);
         let pub_key1 = priv_key1.generate_pubkey();
-        let priv_key2 = PrivateKey::new(49234078927865834890_u128);
+        let priv_key2 = PrivateKey::new(49_234_078_927_865_834_890_u128);
         let pub_key2 = priv_key2.generate_pubkey();
 
         let ecdh1 = priv_key1.ecdh(&pub_key2);
@@ -862,7 +854,7 @@ mod test {
 
     #[test]
     fn test_sign_verify() {
-        let priv_key = PrivateKey::new(8764321234_u128);
+        let priv_key = PrivateKey::new(8_764_321_234_u128);
         let pub_key = priv_key.generate_pubkey();
 
         let msg = b"Liberta!";
@@ -872,7 +864,7 @@ mod test {
 
     #[test]
     fn test_sign_der() {
-        let priv_key = PrivateKey::new(8764321234_u128);
+        let priv_key = PrivateKey::new(8_764_321_234_u128);
         let msg = b"Liberta!";
         let sig = priv_key.sign(msg, true);
         let der = sig.serialize_der();
@@ -881,7 +873,7 @@ mod test {
 
     #[test]
     fn test_sign_verify_schnorr() {
-        let priv_key = PrivateKey::new(532557312_u128);
+        let priv_key = PrivateKey::new(532_557_312_u128);
         let pub_key = priv_key.generate_pubkey();
 
         let msg = b"HODL!";
@@ -931,28 +923,6 @@ mod test {
                 TestMode::ParsePubkeyOnly => parse_pubkey_only(vec),
             };
         }
-    }
-
-    //extra test
-    #[test]
-    fn test_tagged_hash() {
-        //zero message
-        let msg = [0u8];
-        //testing tags
-        let test_tags = vec!["TapLeaf", "TapRoot", "TapBranch", "Random-Chutiyapa"];
-        let mut results = Vec::new();
-        for tag in test_tags {
-            results.push(bytes_to_hex(tagged_hash(tag.as_bytes(), &msg).as_ref()));
-        }
-        // Good Results
-        let good_results = vec![
-            "ED1382037800C9DD938DD8854F1A8863BCDEB6705069B4B56A66EC22519D5829",
-            "A7AB373B73939BA58031EED842B334D97E03664C51047E855F299462A8255D2F",
-            "92534B1960C7E6245AF7D5FDA2588DB04AA6D646ABC2B588DAB2B69E5645EB1D",
-            "4DC5D3BBBDA44AF536A9E7E2B7C080F3C0DA6AEC2E9B9DA2918A8ED66B83F9E1",
-        ];
-
-        assert_eq!(good_results, results);
     }
 
     #[test]

@@ -3,6 +3,7 @@ use crate::secp256k1::{get_context, PrivateKey, PublicKey, Scalar, SchnorrSignat
 use rug::{integer::Order, Integer};
 use std::convert::TryInto;
 
+#[allow(dead_code)]
 pub fn get_agg_musig_pubkey(pubkeys: &[PublicKey]) -> (Vec<(Scalar, PublicKey)>, PublicKey) {
     //Collect the x-coordinate of pubkeys into a vector
     let mut collection: Vec<[u8; 32]> = Vec::new();
@@ -34,6 +35,7 @@ pub fn get_agg_musig_pubkey(pubkeys: &[PublicKey]) -> (Vec<(Scalar, PublicKey)>,
     (challenge, agg_pubkey)
 }
 
+#[allow(dead_code)]
 pub fn agg_schnorr_nonces(nonce_points: &[PublicKey]) -> (PublicKey, bool) {
     let sum: PublicKey = nonce_points.iter().sum();
     if !sum.is_square_y() {
@@ -43,13 +45,14 @@ pub fn agg_schnorr_nonces(nonce_points: &[PublicKey]) -> (PublicKey, bool) {
     }
 }
 
-pub fn sign_musig(privkey: &PrivateKey, nonce: &PrivateKey, R_agg: &PublicKey, Pub_agg: &PublicKey, msg: &[u8; 32]) -> [u8; 32] {
+#[allow(dead_code)]
+pub fn sign_musig(privkey: &PrivateKey, nonce: &PrivateKey, r_agg: &PublicKey, pub_agg: &PublicKey, msg: &[u8; 32]) -> [u8; 32] {
     let secp = get_context();
     assert!(Integer::from_digits(&privkey.serialize(), Order::MsfBe) < secp.order);
     assert_ne!(Integer::from_digits(&privkey.serialize(), Order::MsfBe), 0);
-    assert!(R_agg.is_square_y());
+    assert!(r_agg.is_square_y());
 
-    let data = [R_agg.compressed()[1..].to_vec(), Pub_agg.compressed()[..].to_vec(), msg[..].to_vec()].concat();
+    let data = [r_agg.compressed()[1..].to_vec(), pub_agg.compressed()[..].to_vec(), msg[..].to_vec()].concat();
 
     let e = Scalar::new(&data.hash_digest());
 
@@ -58,13 +61,14 @@ pub fn sign_musig(privkey: &PrivateKey, nonce: &PrivateKey, R_agg: &PublicKey, P
     s.serialize()
 }
 
-pub fn aggregate_musig_signatures(sigs: &[[u8; 32]], R_agg: &PublicKey) -> SchnorrSignature {
+#[allow(dead_code)]
+pub fn aggregate_musig_signatures(sigs: &[[u8; 32]], r_agg: &PublicKey) -> SchnorrSignature {
     let integers: Vec<Integer> = sigs.iter().map(|sig| Integer::from_digits(sig, Order::MsfBe)).collect();
     let sum: Integer = integers.iter().fold(Integer::new(), |agg, x| (agg + x) % &get_context().order);
     let mut s = [0u8; 32];
     s[..].copy_from_slice(&sum.to_digits(Order::MsfBe));
     let mut r = [0u8; 32];
-    r[..].copy_from_slice(&R_agg.compressed()[1..]);
+    r[..].copy_from_slice(&r_agg.compressed()[1..]);
 
     SchnorrSignature::new(&r, &s)
 }
@@ -110,11 +114,12 @@ mod tests {
         let mut key_2 = PrivateKey::new(Integer::from(222));
         let mut key_3 = PrivateKey::new(Integer::from(333));
 
+    
         // Generate Nonce Points
-        let R1 = key_1.generate_pubkey();
-        let R2 = key_2.generate_pubkey();
-        let R3 = key_3.generate_pubkey();
-
+        let r1 = key_1.generate_pubkey();
+        let r2 = key_2.generate_pubkey();
+        let r3 = key_3.generate_pubkey();
+        
         /*
         let R1_digest = R1.clone().compressed().hash_digest();
         let R2_digest = R2.clone().compressed().hash_digest();
@@ -129,7 +134,8 @@ mod tests {
         assert_eq!("bc2c379a7b6ad82b40a7cf280697505ccc039370e50eb155324dcac3b5faa6a5".to_uppercase(),
                     bytes_to_hex(&R3_digest));
         */
-        let (calculated_r_agg, negated) = agg_schnorr_nonces(&[R1, R2, R3]);
+
+        let (calculated_r_agg, negated) = agg_schnorr_nonces(&[r1, r2, r3]);
 
         if negated {
             key_1 = key_1.negate();

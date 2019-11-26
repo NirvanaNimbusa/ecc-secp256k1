@@ -12,6 +12,7 @@ mod ffi;
 //extra added
 mod musig;
 mod utility;
+mod address;
 
 #[cfg(test)]
 mod test_vectors;
