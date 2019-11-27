@@ -73,7 +73,7 @@ fn test_cmp_verify_compact_uncompressed() {
     // Verify with This library
 
     let sig = Signature::parse(sig);
-    let pubkey = PublicKey::from_uncompressed(&pubkey);
+    let pubkey = PublicKey::from_uncompressed(&pubkey).unwrap();
     assert!(pubkey.verify(&orig_msg, sig, true));
 }
 

@@ -58,7 +58,7 @@ pub mod ecdsa {
             PublicKey::from_compressed(key)
         } else if compressed == 0 {
             let key = slice::from_raw_parts(pubkey as *const u8, 65);
-            Ok(PublicKey::from_uncompressed(key))
+            Ok(PublicKey::from_uncompressed(key).unwrap())
         } else {
             return -1;
         };
@@ -139,7 +139,7 @@ pub mod schnorr {
             PublicKey::from_compressed(key)
         } else if compressed == 0 {
             let key = slice::from_raw_parts(pubkey as *const u8, 64);
-            Ok(PublicKey::from_uncompressed(key))
+            Ok(PublicKey::from_uncompressed(key).unwrap())
         } else {
             return -1;
         };

@@ -124,7 +124,7 @@ impl PublicKey {
         result
     }
 
-    pub fn from_uncompressed(ser: &[u8]) -> PublicKey {
+    pub fn from_uncompressed(ser: &[u8]) -> Result<PublicKey, &'static str> {
         let secp = get_context();
         if ser[0] != 0x04 {
             unimplemented!()
@@ -135,7 +135,7 @@ impl PublicKey {
         if !point.is_on_curve() {
             unimplemented!();
         }
-        PublicKey { point }
+        Ok(PublicKey { point })
     }
 
     pub fn from_compressed(ser: &[u8]) -> Result<PublicKey, &'static str> {
@@ -837,7 +837,7 @@ mod test {
         let privkey = PrivateKey::new(32_432_432);
         let pubkey = privkey.generate_pubkey();
         let compress = pubkey.clone().uncompressed();
-        assert_eq!(PublicKey::from_uncompressed(&compress), pubkey);
+        assert_eq!(PublicKey::from_uncompressed(&compress).unwrap(), pubkey);
     }
 
     #[test]

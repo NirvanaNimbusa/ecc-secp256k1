@@ -14,6 +14,13 @@ mod musig;
 mod utility;
 mod address;
 
+#[macro_use]
+mod internal_macros;
+
+mod script;
+mod opcodes;
+
+
 #[cfg(test)]
 mod test_vectors;
 
